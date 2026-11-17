@@ -1,0 +1,115 @@
+name: Build SCI Wheels
+
+on:
+  workflow_dispatch:
+    inputs:
+      llama_version:
+        description: 'llama-cpp-python version'
+        required: true
+        default: '0.3.37'
+
+jobs:
+  build:
+    name: "CUDA ${{ matrix.cuda_short }} · SM${{ matrix.sm }}"
+    runs-on: ubuntu-latest
+    container:
+      image: "nvidia/cuda:${{ matrix.cuda_full }}-devel-ubuntu22.04"
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # CUDA 12.4 — matches pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+          - cuda_full: "12.4.1"
+            cuda_short: "12.4"
+            cuda_tag: "cuda124"
+            sm: "75"    # T4, RTX 2080 Ti
+          - cuda_full: "12.4.1"
+            cuda_short: "12.4"
+            cuda_tag: "cuda124"
+            sm: "80"    # A100 PCIe / SXM4
+          - cuda_full: "12.4.1"
+            cuda_short: "12.4"
+            cuda_tag: "cuda124"
+            sm: "86"    # RTX 3090, A5000, A6000
+          - cuda_full: "12.4.1"
+            cuda_short: "12.4"
+            cuda_tag: "cuda124"
+            sm: "89"    # RTX 4090, L40, L40S
+          - cuda_full: "12.4.1"
+            cuda_short: "12.4"
+            cuda_tag: "cuda124"
+            sm: "90"    # H100 SXM / PCIe
+
+          # CUDA 12.1 — for machines that can't run 12.4 toolkit
+          - cuda_full: "12.1.1"
+            cuda_short: "12.1"
+            cuda_tag: "cuda121"
+            sm: "75"
+          - cuda_full: "12.1.1"
+            cuda_short: "12.1"
+            cuda_tag: "cuda121"
+            sm: "80"
+          - cuda_full: "12.1.1"
+            cuda_short: "12.1"
+            cuda_tag: "cuda121"
+            sm: "86"
+          - cuda_full: "12.1.1"
+            cuda_short: "12.1"
+            cuda_tag: "cuda121"
+            sm: "89"
+          - cuda_full: "12.1.1"
+            cuda_short: "12.1"
+            cuda_tag: "cuda121"
+            sm: "90"
+
+    steps:
+      - name: Install Python 3.11 + build deps
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq software-properties-common
+          add-apt-repository -y ppa:deadsnakes/ppa
+          apt-get update -qq
+          apt-get install -y -qq python3.11 python3.11-dev python3.11-venv
+          python3.11 -m ensurepip --upgrade
+          python3.11 -m pip install -q --upgrade pip wheel setuptools scikit-build-core cmake ninja
+
+      - name: Build wheel
+        env:
+          CMAKE_ARGS: >-
+            -DGGML_CUDA=on
+            -DCMAKE_CUDA_ARCHITECTURES=${{ matrix.sm }}
+            -DCMAKE_BUILD_TYPE=Release
+          FORCE_CMAKE: "1"
+        run: |
+          mkdir /wheels
+          python3.11 -m pip wheel \
+            "llama-cpp-python==${{ inputs.llama_version }}" \
+            --no-deps --no-build-isolation \
+            -w /wheels
+          ls -lh /wheels/
+
+      - name: Create release + upload wheel
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ inputs.llama_version }}-${{ matrix.cuda_tag }}-sm${{ matrix.sm }}"
+          name: "llama-cpp-python ${{ inputs.llama_version }} — CUDA ${{ matrix.cuda_short }}, SM${{ matrix.sm }}"
+          body: |
+            Pre-compiled llama-cpp-python wheel for SCI.
+
+            | | |
+            |---|---|
+            | llama-cpp-python | `${{ inputs.llama_version }}` |
+            | CUDA toolkit | `${{ matrix.cuda_short }}` |
+            | GPU arch (SM) | `SM${{ matrix.sm }}` |
+
+            **Compatible GPUs (SM${{ matrix.sm }}):**
+            ${{ matrix.sm == '75' && '- Tesla T4, RTX 2080 Ti' || '' }}
+            ${{ matrix.sm == '80' && '- A100 PCIe, A100 SXM4, A30' || '' }}
+            ${{ matrix.sm == '86' && '- RTX 3090, A5000, A6000, RTX 3080 Ti' || '' }}
+            ${{ matrix.sm == '89' && '- RTX 4090, L40, L40S' || '' }}
+            ${{ matrix.sm == '90' && '- H100 SXM, H100 PCIe' || '' }}
+          files: "/wheels/*.whl"
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
