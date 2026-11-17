@@ -19,29 +19,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # CUDA 12.4 — matches pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
           - cuda_full: "12.4.1"
             cuda_short: "12.4"
             cuda_tag: "cuda124"
-            sm: "75"    # T4, RTX 2080 Ti
+            sm: "75"
           - cuda_full: "12.4.1"
             cuda_short: "12.4"
             cuda_tag: "cuda124"
-            sm: "80"    # A100 PCIe / SXM4
+            sm: "80"
           - cuda_full: "12.4.1"
             cuda_short: "12.4"
             cuda_tag: "cuda124"
-            sm: "86"    # RTX 3090, A5000, A6000
+            sm: "86"
           - cuda_full: "12.4.1"
             cuda_short: "12.4"
             cuda_tag: "cuda124"
-            sm: "89"    # RTX 4090, L40, L40S
+            sm: "89"
           - cuda_full: "12.4.1"
             cuda_short: "12.4"
             cuda_tag: "cuda124"
-            sm: "90"    # H100 SXM / PCIe
-
-          # CUDA 12.1 — for machines that can't run 12.4 toolkit
+            sm: "90"
           - cuda_full: "12.1.1"
             cuda_short: "12.1"
             cuda_tag: "cuda121"
@@ -66,13 +63,12 @@ jobs:
     steps:
       - name: Install Python 3.11 + build deps
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           apt-get update -qq
-          apt-get install -y -qq software-properties-common
-          add-apt-repository -y ppa:deadsnakes/ppa
-          apt-get update -qq
-          apt-get install -y -qq python3.11 python3.11-dev python3.11-venv
-          python3.11 -m ensurepip --upgrade
-          python3.11 -m pip install -q --upgrade pip wheel setuptools scikit-build-core cmake ninja
+          apt-get install -y -qq \
+            python3.11 python3.11-dev python3.11-venv \
+            python3-pip cmake ninja-build build-essential
+          python3.11 -m pip install -q --upgrade pip wheel setuptools scikit-build-core
 
       - name: Build wheel
         env:
@@ -102,13 +98,6 @@ jobs:
             | llama-cpp-python | `${{ inputs.llama_version }}` |
             | CUDA toolkit | `${{ matrix.cuda_short }}` |
             | GPU arch (SM) | `SM${{ matrix.sm }}` |
-
-            **Compatible GPUs (SM${{ matrix.sm }}):**
-            ${{ matrix.sm == '75' && '- Tesla T4, RTX 2080 Ti' || '' }}
-            ${{ matrix.sm == '80' && '- A100 PCIe, A100 SXM4, A30' || '' }}
-            ${{ matrix.sm == '86' && '- RTX 3090, A5000, A6000, RTX 3080 Ti' || '' }}
-            ${{ matrix.sm == '89' && '- RTX 4090, L40, L40S' || '' }}
-            ${{ matrix.sm == '90' && '- H100 SXM, H100 PCIe' || '' }}
           files: "/wheels/*.whl"
           make_latest: false
         env:
