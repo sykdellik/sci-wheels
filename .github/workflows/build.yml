@@ -12,6 +12,8 @@ jobs:
   build:
     name: "CUDA ${{ matrix.cuda_short }} · SM${{ matrix.sm }}"
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     container:
       image: "nvidia/cuda:${{ matrix.cuda_full }}-devel-ubuntu22.04"
 
