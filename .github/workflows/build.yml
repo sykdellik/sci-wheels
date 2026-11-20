@@ -78,6 +78,7 @@ jobs:
             -DGGML_CUDA=on
             -DCMAKE_CUDA_ARCHITECTURES=${{ matrix.sm }}
             -DCMAKE_BUILD_TYPE=Release
+            -DGGML_CPU_AMX=OFF
           FORCE_CMAKE: "1"
         run: |
           mkdir /wheels
